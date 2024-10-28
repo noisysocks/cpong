@@ -1,5 +1,6 @@
 #include "raylib.h"
 #include "raymath.h"
+#include "rlgl.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -25,15 +26,16 @@
 
 #define PARTICLE_MIN_SPEED 1.6f
 #define PARTICLE_MAX_SPEED 5.0f
-#define PARTICLE_COUNT 1000
-#define PARTICLE_SIZE (Vector2){ 2.0f, 2.0f }
-#define PARTICLE_ORIGIN (Vector2){ 1.0f, 1.0f }
+#define PARTICLE_COUNT 500
+#define PARTICLE_RADIUS 1.0f
 
 #define WAIT_DURATION 2.0
 
-#define BLACK_ROCK_950 (Color){ 0x11, 0x05, 0x3B, 0xFF }
-#define BLACK_ROCK_900 (Color){ 0x2A, 0x0D, 0xA2, 0xFF }
 #define SCORE_FONT_SIZE 120
+#define PASTEL_NAVY (Color){ 0x1A, 0x1B, 0x26, 0xFF }
+#define PASTEL_NAVY_LIGHT  (Color){ 0x24, 0x25, 0x32, 0xFF }
+#define PASTEL_PURPLE (Color){ 0xBA, 0xA2, 0xFF, 0xFF }
+#define PASTEL_PINK (Color){ 0xFF, 0xB2, 0xE6, 0xFF }
 
 typedef struct {
     float position;
@@ -188,9 +190,9 @@ Particle *CreateParticle(Vector2 position) {
     particle->velocity = Vector2Scale(direction, speed);
 
     particle->color = (Color){
-        GetRandomValue(0, 255),
-        GetRandomValue(0, 255),
-        GetRandomValue(0, 255),
+        128 + GetRandomValue(0, 127),
+        128 + GetRandomValue(0, 127),
+        128 + GetRandomValue(0, 127),
         255
     };
 
@@ -238,6 +240,7 @@ ParticleMoveEvent MoveParticle(Particle *particle) {
 }
 
 int main(void) {
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "CPong");
     SetTargetFPS(60);
 
@@ -296,9 +299,9 @@ int main(void) {
 
         BeginDrawing();
         {
-            ClearBackground(BLACK_ROCK_950);
+            ClearBackground(PASTEL_NAVY);
 
-            DrawLine(WINDOW_WIDTH / 2, 0, WINDOW_WIDTH / 2, WINDOW_HEIGHT, BLACK_ROCK_900);
+            DrawLine(WINDOW_WIDTH / 2, 0, WINDOW_WIDTH / 2, WINDOW_HEIGHT, PASTEL_NAVY_LIGHT);
 
             const char *playerScoreText = TextFormat("%d", playerScore);
             const Vector2 playerScoreSize = MeasureTextEx(
@@ -316,7 +319,7 @@ int main(void) {
                 },
                 SCORE_FONT_SIZE,
                 SCORE_FONT_SIZE / 10.f,
-                BLACK_ROCK_900
+                PASTEL_NAVY_LIGHT
             );
 
             const char *computerScoreText = TextFormat("%d", computerScore);
@@ -335,40 +338,52 @@ int main(void) {
                 },
                 SCORE_FONT_SIZE,
                 SCORE_FONT_SIZE / 10.f,
-                BLACK_ROCK_900
+                PASTEL_NAVY_LIGHT
             );
 
             for (Particle *particle = headParticle; particle != NULL; particle = particle->next ) {
-                DrawRectangleV(
-                    Vector2Subtract(particle->position, PARTICLE_ORIGIN),
-                    PARTICLE_SIZE,
-                    particle->color
-                );
+                DrawCircleV(particle->position, PARTICLE_RADIUS, particle->color);
             }
 
-            DrawRectangleV(
-                (Vector2){ BAT_OFFSET, playerBat.position - BAT_ORIGIN.y },
-                BAT_SIZE,
-                WHITE
+            DrawRectangleRounded(
+                (Rectangle){
+                    .x = BAT_OFFSET,
+                    .y = playerBat.position - BAT_ORIGIN.y,
+                    .width = BAT_SIZE.x,
+                    .height = BAT_SIZE.y
+                },
+                0.5f,
+                8,
+                PASTEL_PURPLE
             );
 
-            DrawRectangleV(
-                (Vector2){ WINDOW_WIDTH - BAT_OFFSET - BAT_SIZE.x, computerBat.position - BAT_ORIGIN.y },
-                BAT_SIZE,
-                WHITE
+            DrawRectangleRounded(
+                (Rectangle){
+                    .x = WINDOW_WIDTH - BAT_OFFSET - BAT_SIZE.x,
+                    .y = computerBat.position - BAT_ORIGIN.y,
+                    .width = BAT_SIZE.x,
+                    .height = BAT_SIZE.y
+                },
+                0.5f,
+                8,
+                PASTEL_PURPLE
             );
 
-            DrawRectanglePro(
-                (Rectangle) {
-                    .x = ball.position.x,
-                    .y = ball.position.y,
+            rlPushMatrix();
+            rlTranslatef(ball.position.x, ball.position.y, 0.0f);
+            rlRotatef(ball.angle * RAD2DEG, 0.0f, 0.0f, 1.0f);
+            DrawRectangleRounded(
+                (Rectangle){
+                    .x = -BALL_RADIUS,
+                    .y = -BALL_RADIUS,
                     .width = BALL_RADIUS * 2.0f,
                     .height = BALL_RADIUS * 2.0f,
                 },
-                (Vector2){ BALL_RADIUS, BALL_RADIUS },
-                ball.angle * RAD2DEG,
-                WHITE
+                0.5f,
+                8,
+                PASTEL_PURPLE
             );
+            rlPopMatrix();
 
             DrawFPS(10, 10);
         }
