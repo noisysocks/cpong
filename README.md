@@ -1,5 +1,7 @@
 # cpong
 
+A curvy pong game written in C using [Raylib](https://www.raylib.com).
+
 ## Getting started
 
 Native:
