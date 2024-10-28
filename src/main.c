@@ -4,8 +4,12 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define WINDOW_WIDTH 600
-#define WINDOW_HEIGHT 400
+#define GAME_WIDTH 600
+#define GAME_HEIGHT 400
+#define WINDOW_WIDTH (GAME_WIDTH * 1.5f)
+#define WINDOW_HEIGHT (GAME_HEIGHT * 1.5f)
+#define TEXTURE_WIDTH (WINDOW_WIDTH * 2.0f)
+#define TEXTURE_HEIGHT (WINDOW_HEIGHT * 2.0f)
 
 #define BAT_OFFSET 20.0f
 #define BAT_SIZE (Vector2){ 10.0f, 70.0f }
@@ -18,7 +22,7 @@
 #define COMPUTER_REACT_DISTANCE 25.0f
 
 #define BALL_RADIUS 10.0f
-#define BALL_INITIAL_POSITION (Vector2){ WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f }
+#define BALL_INITIAL_POSITION (Vector2){ GAME_WIDTH / 2.0f, GAME_HEIGHT / 2.0f }
 #define BALL_INITIAL_ANGLE (PI / 9.0f)
 #define BALL_SPEED 6.6f
 #define BALL_MAX_ANGULAR_VELOCITY 0.03f
@@ -31,7 +35,8 @@
 
 #define WAIT_DURATION 2.0
 
-#define SCORE_FONT_SIZE 120
+#define LINE_THICKNESS 2.0f
+#define SCORE_FONT_SIZE 180
 #define PASTEL_NAVY (Color){ 0x1A, 0x1B, 0x26, 0xFF }
 #define PASTEL_NAVY_LIGHT  (Color){ 0x24, 0x25, 0x32, 0xFF }
 #define PASTEL_PURPLE (Color){ 0xBA, 0xA2, 0xFF, 0xFF }
@@ -99,8 +104,8 @@ void MoveBat(Bat *bat) {
         bat->position = BAT_ORIGIN.y;
         bat->velocity = -bat->velocity;
     }
-    else if (bottom > WINDOW_HEIGHT) {
-        bat->position = WINDOW_HEIGHT - BAT_ORIGIN.y;
+    else if (bottom > GAME_HEIGHT) {
+        bat->position = GAME_HEIGHT - BAT_ORIGIN.y;
         bat->velocity = -bat->velocity;
     }
 }
@@ -122,15 +127,15 @@ BallMoveEvent MoveBall(Ball *ball, const Bat *playerBat, const Bat *computerBat)
         ball->position.y = BALL_RADIUS;
         ball->angle = atan2f(-velocity.y, velocity.x);
     }
-    else if (ballBottom > WINDOW_HEIGHT) {
-        ball->position.y = WINDOW_HEIGHT - BALL_RADIUS;
+    else if (ballBottom > GAME_HEIGHT) {
+        ball->position.y = GAME_HEIGHT - BALL_RADIUS;
         ball->angle = atan2f(-velocity.y, velocity.x);
     }
 
     const float playerBatRight = BAT_OFFSET + BAT_SIZE.x;
     const float playerBatTop = playerBat->position - BAT_ORIGIN.y;
     const float playerBatBottom = playerBat->position + BAT_ORIGIN.y;
-    const float computerBatLeft = WINDOW_WIDTH - BAT_OFFSET - BAT_SIZE.x;
+    const float computerBatLeft = GAME_WIDTH - BAT_OFFSET - BAT_SIZE.x;
     const float computerBatTop = computerBat->position - BAT_ORIGIN.y;
     const float computerBatBottom = computerBat->position + BAT_ORIGIN.y;
 
@@ -140,7 +145,7 @@ BallMoveEvent MoveBall(Ball *ball, const Bat *playerBat, const Bat *computerBat)
         ball->angularVelocity = 0.0f;
         return BALL_MOVE_EVENT_COMPUTER_SCORE;
     }
-    if (ballLeft > WINDOW_WIDTH) {
+    if (ballLeft > GAME_WIDTH) {
         ball->position = BALL_INITIAL_POSITION;
         ball->angle = BALL_INITIAL_ANGLE;
         ball->angularVelocity = 0.0f;
@@ -229,9 +234,9 @@ ParticleMoveEvent MoveParticle(Particle *particle) {
 
     if (
         particle->position.x < 0.0f ||
-        particle->position.x > WINDOW_WIDTH ||
+        particle->position.x > GAME_WIDTH ||
         particle->position.y < 0.0f ||
-        particle->position.y > WINDOW_HEIGHT
+        particle->position.y > GAME_HEIGHT
     ) {
         return PARTICLE_MOVE_EVENT_DIE;
     }
@@ -244,11 +249,24 @@ int main(void) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "CPong");
     SetTargetFPS(60);
 
+    RenderTexture2D target = LoadRenderTexture(TEXTURE_WIDTH, TEXTURE_HEIGHT);
+    SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
+
+    Shader bloomShader = LoadShader("resources/bloom.vs", "resources/bloom.fs");
+
+    int resolutionLocation = GetShaderLocation(bloomShader, "resolution");
+    float resolution[2] = { TEXTURE_WIDTH, TEXTURE_HEIGHT };
+    SetShaderValue(bloomShader, resolutionLocation, resolution, SHADER_UNIFORM_VEC2);
+
+    int intensityLocation = GetShaderLocation(bloomShader, "intensity");
+    float intensity[1] = { 1.5f };
+    SetShaderValue(bloomShader, intensityLocation, intensity, SHADER_UNIFORM_FLOAT);
+
     Bat playerBat = {
-        .position = WINDOW_HEIGHT / 2.0f,
+        .position = GAME_HEIGHT / 2.0f,
     };
     Bat computerBat = {
-        .position = WINDOW_HEIGHT / 2.0f,
+        .position = GAME_HEIGHT / 2.0f,
     };
 
     Ball ball = {
@@ -297,11 +315,75 @@ int main(void) {
             }
         }
 
+        BeginTextureMode(target);
+        {
+            ClearBackground((Color){ 255, 255, 255, 0 });
+
+            rlPushMatrix();
+            {
+                rlScalef(TEXTURE_WIDTH / GAME_WIDTH, TEXTURE_HEIGHT / GAME_HEIGHT, 1.0f);
+
+                for (Particle *particle = headParticle; particle != NULL; particle = particle->next ) {
+                    DrawCircleV(particle->position, PARTICLE_RADIUS, particle->color);
+                }
+
+                DrawRectangleRounded(
+                    (Rectangle){
+                        .x = BAT_OFFSET,
+                        .y = playerBat.position - BAT_ORIGIN.y,
+                        .width = BAT_SIZE.x,
+                        .height = BAT_SIZE.y
+                    },
+                    0.5f,
+                    8,
+                    PASTEL_PURPLE
+                );
+
+                DrawRectangleRounded(
+                    (Rectangle){
+                        .x = GAME_WIDTH - BAT_OFFSET - BAT_SIZE.x,
+                        .y = computerBat.position - BAT_ORIGIN.y,
+                        .width = BAT_SIZE.x,
+                        .height = BAT_SIZE.y
+                    },
+                    0.5f,
+                    8,
+                    PASTEL_PURPLE
+                );
+
+                rlPushMatrix();
+                {
+                    rlTranslatef(ball.position.x, ball.position.y, 0.0f);
+                    rlRotatef(ball.angle * RAD2DEG, 0.0f, 0.0f, 1.0f);
+                    DrawRectangleRounded(
+                        (Rectangle){
+                            .x = -BALL_RADIUS,
+                            .y = -BALL_RADIUS,
+                            .width = BALL_RADIUS * 2.0f,
+                            .height = BALL_RADIUS * 2.0f,
+                        },
+                        0.5f,
+                        8,
+                        PASTEL_PURPLE
+                    );
+                }
+                rlPopMatrix();
+            }
+            rlPopMatrix();
+        }
+        EndTextureMode();
+
         BeginDrawing();
         {
             ClearBackground(PASTEL_NAVY);
 
-            DrawLine(WINDOW_WIDTH / 2, 0, WINDOW_WIDTH / 2, WINDOW_HEIGHT, PASTEL_NAVY_LIGHT);
+            DrawRectangle(
+                WINDOW_WIDTH / 2.0f - LINE_THICKNESS / 2.0f,
+                0.0f,
+                LINE_THICKNESS,
+                WINDOW_HEIGHT,
+                PASTEL_NAVY_LIGHT
+            );
 
             const char *playerScoreText = TextFormat("%d", playerScore);
             const Vector2 playerScoreSize = MeasureTextEx(
@@ -341,49 +423,16 @@ int main(void) {
                 PASTEL_NAVY_LIGHT
             );
 
-            for (Particle *particle = headParticle; particle != NULL; particle = particle->next ) {
-                DrawCircleV(particle->position, PARTICLE_RADIUS, particle->color);
-            }
-
-            DrawRectangleRounded(
-                (Rectangle){
-                    .x = BAT_OFFSET,
-                    .y = playerBat.position - BAT_ORIGIN.y,
-                    .width = BAT_SIZE.x,
-                    .height = BAT_SIZE.y
-                },
-                0.5f,
-                8,
-                PASTEL_PURPLE
+            BeginShaderMode(bloomShader);
+            DrawTexturePro(
+                target.texture,
+                (Rectangle){ 0.0f, 0.0f, TEXTURE_WIDTH, -TEXTURE_HEIGHT },
+                (Rectangle){ 0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT },
+                Vector2Zero(),
+                0.0f,
+                WHITE
             );
-
-            DrawRectangleRounded(
-                (Rectangle){
-                    .x = WINDOW_WIDTH - BAT_OFFSET - BAT_SIZE.x,
-                    .y = computerBat.position - BAT_ORIGIN.y,
-                    .width = BAT_SIZE.x,
-                    .height = BAT_SIZE.y
-                },
-                0.5f,
-                8,
-                PASTEL_PURPLE
-            );
-
-            rlPushMatrix();
-            rlTranslatef(ball.position.x, ball.position.y, 0.0f);
-            rlRotatef(ball.angle * RAD2DEG, 0.0f, 0.0f, 1.0f);
-            DrawRectangleRounded(
-                (Rectangle){
-                    .x = -BALL_RADIUS,
-                    .y = -BALL_RADIUS,
-                    .width = BALL_RADIUS * 2.0f,
-                    .height = BALL_RADIUS * 2.0f,
-                },
-                0.5f,
-                8,
-                PASTEL_PURPLE
-            );
-            rlPopMatrix();
+            EndShaderMode();
 
             DrawFPS(10, 10);
         }

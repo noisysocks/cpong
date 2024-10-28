@@ -10,7 +10,8 @@ Native:
 mkdir build
 cmake -S . -B build
 cmake --build build
-./build/cpong/cpong
+cd build/cpong
+./cpong
 ```
 
 Web:
@@ -19,5 +20,6 @@ Web:
 mkdir build_web
 emcmake cmake -S . -B build_web -DPLATFORM=Web
 emmake cmake --build build_web
-emrun build_web/cpong/cpong.html
+cd build_web/cpong
+emrun cpong.html
 ```
